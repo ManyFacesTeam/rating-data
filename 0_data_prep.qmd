@@ -188,10 +188,10 @@ gender_recode <- read_csv("data/gender_recode.csv", na = "", show_col_types = FA
 
 ```{r}
 data_model <- model_raw |> 
-  separate_wider_delim(ID,
-                       delim = "_",
-                       names = c("lab_id", "model_id"),
-                       too_many = "drop") |>
+#  separate_wider_delim(ID,
+#                       delim = "_",
+#                       names = c("lab_id", "model_id"),
+#                       too_many = "drop") |>
   mutate(across(where(is.character), ~ na_if(.x, "NULL"))) |> 
   # recode gender and ethnicity
   mutate(gender = tolower(gender),
@@ -219,7 +219,7 @@ data_model <- model_raw |>
 ```
 
 #### Questionnaire data
-**recoding of  ethnicity**
+**recoding of ethnicity**
 ```{r}
 quest_eth_recode <- read_csv("data/quest_eth_recode.csv", na = "", show_col_types = FALSE)
 
@@ -434,8 +434,14 @@ data_exp |>
   count(exp)
 ```
 
-### Compile and save data
+## Remove rating data for models who did not consent to database inclusion
+```{r}
+data_exp <- data_exp |>
+  filter(!grepl("MF0007|MF0013_0002|MF0013_0004|MF0013_0006|MF0013_0008|MF0013_0010|MF0013_0012|MF0014_0001|MF0015_0005|MF0015_0009|MF0021_0006|MF0025_0009", trial_name))
+```
 
+
+## Compile and save data
 ```{r}
 # Rating data
 write_csv(data_exp, "data/manyfaces_ratings_exp_cleaned.csv")

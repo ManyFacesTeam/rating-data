@@ -1,4 +1,4 @@
-ethnicity,ethnicity_rec
+﻿ethnicity,ethnicity_rec
 white,White
 branco,White
 branca,White
@@ -55,7 +55,6 @@ israeli.,MENA
 israel,MENA
 muslim,MENA
 turkish,MENA
-tã¼rkiye,MENA
 türkiye,MENA
 latino,Latine
 latina,Latine
