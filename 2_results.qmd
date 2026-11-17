@@ -1,0 +1,737 @@
+---
+title: "ManyFaces validation/norming ratings"
+subtitle: "Compiling ratings by face"
+format: 
+  html:
+    code-fold: true
+    df-print: kable
+    embed-resources: true
+    fig-height: 5
+    fig-width: 8
+    toc: true
+execute: 
+  error: true
+---
+
+```{r}
+#| message: false
+library(tidyverse)
+
+# Load custom functions
+source("data/custom_functions.R")
+```
+
+## Load data
+```{r}
+# Rating data
+data_exp <- read_csv("data/manyfaces_ratings_exp_cleaned.csv",
+                     show_col_types = FALSE)
+
+exp_levels_neutral <- c("attractive", "trustworthy", "dominant", 
+                        "memorable", "gender-typical")
+
+exp_levels_neutral_unstd <- c("attractive (unstd)", 
+                              "trustworthy (unstd)",
+                              "dominant (unstd)")
+
+exp_levels_emo_cat <- c("emotion 1", "emotion 2", "emotion 3", 
+                        "emotion 4", "emotion 5", "emotion 6")
+
+exp_levels_emo_int <- c("anger", "disgust", "fear", 
+                        "happiness", "sadness", "surprise")
+
+# Questionnaire data
+data_qu <- read_csv("data/manyfaces_ratings_quest_cleaned.csv",
+                    show_col_types = FALSE)
+
+# Model data (available via UK Data Service ReShare)
+data_model <- read_csv("ReShare_data/manyfaces_model_data_cleaned.csv",
+                       show_col_types = FALSE)
+
+rainbow <- c("firebrick", "darkorange", "goldenrod",
+             "darkgreen", "dodgerblue3", "darkorchid4")
+```
+
+
+## Standardised neutral trait ratings
+
+```{r}
+std_neutral <- data_exp |>
+  filter(exp %in% exp_levels_neutral) |>
+  mutate(dv = as.integer(dv),
+         exp = factor(exp, exp_levels_neutral)) |> 
+  separate_wider_delim(trial_name,
+                       delim = "_",
+                       names = c("lab_id", "model_id"),
+                       too_many = "drop")
+
+std_neutral_by_gender <- std_neutral |> 
+  left_join((data_model |> dplyr::select(lab_id, model_id, gender_rec)), by = c("lab_id", "model_id"))
+```
+
+### Descriptive statistics
+
+```{r}
+std_neutral |>
+  summarise(N = n(),
+            mean_rating = mean(dv),
+            .by = c("exp", "lab_id", "model_id")) |> 
+  summarise(N_raters = first(N),
+            M = mean(mean_rating),
+            SD = sd(mean_rating),
+            .by = "exp") |> 
+mutate(across(where(is.numeric) & !any_of("N"), ~ round(.x, 2)))
+```
+
+split by model gender (female vs male)
+```{r}
+std_neutral_by_gender |>
+  filter(gender_rec=="female" | gender_rec =="male") |>
+  summarise(mean_rating = mean(dv),
+            .by = c("gender_rec", "exp", "lab_id", "model_id")) |> 
+  summarise(M = mean(mean_rating),
+            SD = sd(mean_rating),
+            .by = c("gender_rec", "exp")) |> 
+mutate(across(where(is.numeric) & !any_of("N"), ~ round(.x, 2)))
+```
+
+
+### Histograms
+```{r fig.height=5, fig.width=8}
+# calculate proportions for plot
+std_prop <- std_neutral |> 
+  group_by(exp) |> 
+  count(exp, dv) |> 
+  mutate(prop = n / sum(n)) |>
+  ungroup() 
+
+# plot
+std_prop |>
+  ggplot(aes(x = dv, y = prop, fill = exp)) +
+  geom_bar(stat="identity", show.legend = FALSE, 
+                 colour = "white", alpha = .8)  +
+  facet_wrap(~exp, ncol = 3, axes = "all_x", drop = FALSE) +
+  scale_x_continuous(breaks = 1:7) +
+  labs(title = "Standardized neutral trait ratings",
+       x = "Rating",
+       y="Proportion") +
+  scale_fill_manual(values = rainbow, drop = FALSE) +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 11, face = "bold"),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12, face = "plain"),
+        title = element_text(size = 12))
+```
+
+
+
+Save mean rating for each face for each trait
+```{r}
+std_neutral_means <- std_neutral |> 
+  summarise(mean_rating = mean(dv),
+            rater_N = n(),
+            .by = c("exp", "lab_id", "model_id")) |> 
+  pivot_wider(id_cols = c(lab_id, model_id),
+              names_from = exp,
+              #values_from = c(mean_rating, rater_N))
+              values_from = mean_rating)
+```
+
+### Ratings per model
+
+Note: The heatmaps visualise the frequency distribution of ratings for each model (y-axis) from each lab (shown in separate panels). Darker tiles indicate that more raters gave a particular rating (x-axis) to that model.
+
+#### Attractiveness
+
+```{r}
+#| fig-height: 10
+#| fig-width: 10
+
+heatmap(std_neutral, "attractive", "Attractiveness")
+```
+
+#### Trustworthiness
+
+```{r}
+#| fig-height: 10
+#| fig-width: 10
+
+heatmap(std_neutral, "trustworthy", "Trustworthiness")
+```
+
+#### Dominance
+
+```{r}
+#| fig-height: 10
+#| fig-width: 10
+
+heatmap(std_neutral, "dominant", "Dominance")
+```
+
+#### Memorability
+
+```{r}
+#| fig-height: 10
+#| fig-width: 10
+
+heatmap(std_neutral, "memorable", "Memorability")
+```
+
+#### Gender typicality
+
+```{r}
+#| fig-height: 10
+#| fig-width: 10
+
+heatmap(std_neutral, "gender-typical", "Gender Typicality")
+```
+
+
+## Unstandardised neutral trait ratings
+
+```{r}
+unstd_neutral <- data_exp |>
+  filter(exp %in% exp_levels_neutral_unstd) |>
+  mutate(dv = as.integer(dv),
+         exp = factor(exp, exp_levels_neutral_unstd)) |> 
+  separate_wider_delim(trial_name,
+                       delim = "_",
+                       names = c("lab_id", "model_id"),
+                       too_many = "drop")
+
+unstd_neutral_by_gender <- unstd_neutral |> 
+  left_join((data_model |> dplyr::select(lab_id, model_id, gender_rec)), by = c("lab_id", "model_id"))
+```
+
+### Descriptive statistics
+```{r}
+unstd_neutral |>
+  summarise(N = n(),
+            mean_rating = mean(dv),
+            .by = c("exp", "lab_id", "model_id")) |> 
+  summarise(N_raters = first(N),
+            M = mean(mean_rating),
+            SD = sd(mean_rating),
+            .by = "exp") |> 
+mutate(across(where(is.numeric) & !any_of("N"), ~ round(.x, 2)))
+```
+
+split by model gender (female vs male)
+```{r}
+unstd_neutral_by_gender |>
+  filter(gender_rec=="female" | gender_rec =="male") |>
+  summarise(mean_rating = mean(dv),
+            .by = c("gender_rec", "exp", "lab_id", "model_id")) |> 
+  summarise(M = mean(mean_rating),
+            SD = sd(mean_rating),
+            .by = c("gender_rec", "exp")) |> 
+mutate(across(where(is.numeric) & !any_of("N"), ~ round(.x, 2)))
+```
+
+### Histograms
+```{r fig.height = 2.75, fig.width=8}
+# calculate proportions for plot
+unstd_prop <- unstd_neutral |> 
+  group_by(exp) |> 
+  count(exp, dv) |> 
+  mutate(prop = n / sum(n)) |>
+  ungroup()
+
+# plot
+unstd_prop |>
+  ggplot(aes(x = dv, y = prop, fill = exp)) +
+  geom_bar(stat="identity", show.legend = FALSE, 
+                 colour = "white", alpha = .8) +
+  facet_wrap(~exp, ncol = 5, drop = FALSE) +
+  labs(title = "Unstandardized neutral trait ratings",
+       x = "Rating",
+       y = "Proportion") +
+  scale_x_continuous(breaks = 1:7) +
+  scale_fill_manual(values = rainbow, drop = FALSE) + 
+  theme_minimal() +
+  theme(strip.text = element_text(size = 11, face = "bold"),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12, face = "plain"),
+        title = element_text(size = 12))
+```
+
+Save mean rating for each face for each trait
+```{r}
+unstd_neutral_means <- unstd_neutral |> 
+  summarise(mean_rating = mean(dv),
+            rater_N = n(),
+            .by = c("exp", "lab_id", "model_id")) |> 
+  pivot_wider(id_cols = c(lab_id, model_id),
+              names_from = exp,
+              #values_from = c(mean_rating, rater_N))
+              values_from = mean_rating)
+```
+
+### Ratings per model
+
+#### Attractiveness 
+
+```{r}
+#| fig-height: 10
+#| fig-width: 10
+
+heatmap(unstd_neutral, "attractive (unstd)", "Attractiveness (Unstandardised)")
+```
+
+#### Trustworthiness 
+
+```{r}
+#| fig-height: 10
+#| fig-width: 10
+
+heatmap(unstd_neutral, "trustworthy (unstd)", "Trustworthiness (Unstandardised)")
+```
+
+#### Dominance 
+
+```{r}
+#| fig-height: 10
+#| fig-width: 10
+
+heatmap(unstd_neutral, "dominant (unstd)", "Dominance (Unstandardised)")
+```
+
+## Emotion categorisations
+
+```{r}
+emo_cat <- data_exp |>
+  filter(exp %in% exp_levels_emo_cat) |>
+  mutate(exp = factor(exp, exp_levels_emo_cat),
+         dv = factor(dv, levels = c("anger", "disgust", "fear", 
+                                    "happiness", "sadness", 
+                                    "surprise", "other"))) |> 
+  separate_wider_delim(trial_name,
+                       delim = "_",
+                       names = c("lab_id", "model_id", NA, 
+                                 "model_expression", NA),
+                       too_many = "drop") |> 
+  mutate(model_expression = forcats::fct_recode(model_expression,
+                                                anger = "ang",
+                                                disgust = "dis",
+                                                fear = "fea",
+                                                happiness = "hap",
+                                                sadness = "sad",
+                                                surprise = "sur"))
+
+emo_cat_by_gender <- emo_cat |> 
+  left_join((data_model |> dplyr::select(lab_id, model_id, gender_rec)), by = c("lab_id", "model_id"))
+```
+
+### Descriptive statistics
+```{r}
+emo_cat |> 
+  group_by(model_expression) |> 
+  count(model_expression, dv) |> 
+  mutate(prop = n / sum(n)) |>
+  ungroup() |> 
+  dplyr::select(-n) |> 
+  pivot_wider(names_from = dv,
+              values_from = prop) |> 
+  relocate(other, .after = surprise) |> 
+  mutate(across(where(is.numeric), ~ round(.x, 2)))
+```
+
+split by model gender (female vs male)
+```{r}
+emo_cat_by_gender |> 
+  filter(gender_rec == "female" | gender_rec =="male") |>
+  group_by(gender_rec, model_expression) |> 
+  count(model_expression, dv) |> 
+  mutate(prop = n / sum(n)) |>
+  ungroup() |> 
+  dplyr::select(-n) |> 
+  pivot_wider(names_from = dv,
+              values_from = prop) |> 
+  relocate(other, .after = surprise) |> 
+  mutate(across(where(is.numeric), ~ round(.x, 2)))
+```
+
+
+### Histograms
+```{r fig.height=5, fig.width=8}
+emo_levels <- levels(emo_cat$model_expression)
+emo_labels <- paste(emo_levels, "faces")
+
+emo_prop <- emo_cat |> 
+  group_by(model_expression) |> 
+  count(model_expression, dv) |> 
+  mutate(prop = n / sum(n)) |>
+  ungroup() 
+
+emo_prop |>
+  mutate(emo = factor(model_expression, emo_levels, emo_labels)) |>
+  ggplot(aes(x = dv, y=prop, fill = dv)) +
+#  geom_point(aes(x = x, colour = I(fill), fill = I(fill)), 
+#             data.frame(emo = factor(emo_levels, emo_levels, emo_labels),
+#                        x = 1:6,
+#                        fill = rainbow),
+#             size = 6.5, y = -60, shape = 18, show.legend = FALSE) +
+  geom_bar(color = "transparent", stat="identity") +
+  facet_wrap(~emo, axes = "all_x", drop = FALSE) +
+  scale_x_discrete(labels = c("", "", "", "", "", "", "")) +
+  scale_fill_manual(values = c(rainbow, "grey"), drop = FALSE) +
+  labs(title = "Standardized emotion categorizations",
+       x = "Categorization",
+       y = "Proportion",
+       fill = "Categorized as") +
+  coord_cartesian(clip = "off") +
+  theme_minimal() +
+  theme(axis.ticks.x = element_blank(),
+        strip.text = element_text(size = 11, face = "bold"),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12, face = "plain"),
+        title = element_text(size = 12))
+
+# this shows counts rather than proportions, but includes downward arrows for correct category
+
+#emo_cat |>
+#  mutate(emo = factor(model_expression, emo_levels, emo_labels)) |>
+#  ggplot(aes(x = dv, fill = dv)) +
+#  geom_point(aes(x = x, colour = I(fill), fill = I(fill)), 
+#             data.frame(emo = factor(emo_levels, emo_levels, emo_labels),
+#                        x = 1:6,
+#                        fill = rainbow),
+#             size = 6.5, y = -60, shape = 18, show.legend = FALSE) +
+#  geom_bar(color = "transparent") +
+#  facet_wrap(~emo, axes = "all_x", drop = FALSE) +
+#  scale_x_discrete(labels = c("", "", "", "", "", "", "")) +
+#  scale_fill_manual(values = c(rainbow, "grey"), drop = FALSE) +
+#  labs(title = "Standardized emotion categorizations",
+#       x = "",
+#       fill = "Categorized as") +
+# coord_cartesian(clip = "off") +
+#  theme(axis.ticks.x = element_blank())
+```
+
+Save proportion of raters choosing each emotion for each face
+```{r}
+emo_cat_props <- emo_cat |> 
+  group_by(lab_id, model_id, model_expression) |> 
+  count(model_expression, dv) |> 
+  group_by(lab_id, model_id, model_expression) |>
+  mutate(prop = n / sum(n)) |>
+  ungroup() |> 
+  dplyr::select(-n) |> 
+  pivot_wider(names_from = dv,
+              values_from = prop) |> 
+  relocate(other, .after = surprise)
+```
+
+## Emotion intensity ratings
+
+```{r}
+emo_int <- data_exp |>
+  filter(exp %in% exp_levels_emo_int) |>
+  mutate(dv = as.integer(dv),
+         exp = factor(exp, exp_levels_emo_int)) |> 
+  separate_wider_delim(trial_name,
+                       delim = "_",
+                       names = c("lab_id", "model_id"),
+                       too_many = "drop")
+
+emo_int_by_gender <- emo_int |> 
+  left_join((data_model |> dplyr::select(lab_id, model_id, gender_rec)), by = c("lab_id", "model_id"))
+```
+
+### Descriptive statistics
+```{r}
+emo_int |>
+  summarise(N = n(),
+            mean_rating = mean(dv),
+            .by = c("exp", "lab_id", "model_id")) |> 
+  summarise(N_raters = first(N),
+            M = mean(mean_rating),
+            SD = sd(mean_rating),
+            .by = "exp") |> 
+mutate(across(where(is.numeric) & !any_of("N"), ~ round(.x, 2)))
+```
+
+split by model gender (female vs male)
+```{r}
+emo_int_by_gender |>
+  filter(gender_rec == "female" | gender_rec == "male") |>
+  summarise(mean_rating = mean(dv),
+            .by = c("gender_rec", "exp", "lab_id", "model_id")) |> 
+  summarise(M = mean(mean_rating),
+            SD = sd(mean_rating),
+            .by = c("gender_rec", "exp")) |> 
+mutate(across(where(is.numeric) & !any_of("N"), ~ round(.x, 2)))
+```
+
+
+### Histograms
+```{r fig.height=5, fig.width=8}
+# calculate proportions for plot
+emo_int_prop <- emo_int |> 
+  group_by(exp) |> 
+  count(exp, dv) |> 
+  mutate(prop = n / sum(n)) |>
+  ungroup() 
+
+# plot
+emo_int_prop |>
+  ggplot(aes(x = dv, y = prop,
+             fill = exp)) +
+  geom_bar(stat="identity", show.legend = FALSE, 
+                 colour = "white", alpha = .8) +
+  facet_wrap(~exp, ncol = 3, axes = "all_x", drop = FALSE) +
+  labs(title = "Standardized emotion intensity ratings",
+       x = "Rating",
+       y = "Proportion") +
+  scale_fill_manual(values = rainbow, drop = FALSE) +
+  scale_x_continuous(breaks = 1:7) + 
+  theme_minimal() +
+  theme(strip.text = element_text(size = 11, face = "bold"),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12, face = "plain"),
+        title = element_text(size = 12))
+```
+
+Save mean rating for each face for each trait
+```{r}
+emo_int_means <- emo_int |> 
+  summarise(mean_rating = mean(dv),
+            rater_N = n(),
+            .by = c("exp", "lab_id", "model_id")) |> 
+  rename(model_expression = exp,
+         mean_intensity_rating = mean_rating) |> 
+  dplyr::select(-rater_N)
+```
+
+## Age ratings
+
+```{r}
+dv_levels <- seq(20, 85, 5)
+dv_labels <- paste(dv_levels-4, "-", dv_levels )
+dv_labels[14] <- "81+"
+
+age <- data_exp |>
+  filter(exp == "age") |>
+  mutate(dv = factor(dv, dv_levels, dv_labels)) |> 
+  separate_wider_delim(trial_name,
+                       delim = "_",
+                       names = c("lab_id", "model_id"),
+                       too_many = "drop")
+```
+
+### Histogram
+
+```{r}
+age |>
+  ggplot(aes(x = dv, y = after_stat(count / sum(count)))) +
+  geom_bar(color = "orchid", fill = "orchid") +
+  scale_x_discrete(drop = FALSE) +
+  labs(title = "Standardized neutral perceived age",
+       x = "age categories (in years)",
+       y = "proportion") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12, face = "plain"),
+        title = element_text(size = 12))
+```
+
+Save modal age for each face
+```{r}
+age_modes <- age |>
+  group_by(lab_id, model_id) |>
+  summarise(out = list(get_mode_info(dv)),
+            .groups = "drop") |>
+  unnest_wider(out)
+```
+
+### Ratings per model
+
+```{r}
+#| fig-height: 10
+#| fig-width: 10
+
+age |>
+  count(lab_id, model_id, dv) |>
+  ggplot(aes(x = dv, y = model_id, fill = n)) +
+  geom_tile() +
+  facet_wrap(~lab_id) +
+  scale_fill_viridis_c() +
+  labs(x = "Age", y = NULL) +
+  theme(legend.position = "none", 
+        axis.text.x = element_text(angle = 90))
+  
+```
+
+### Actual vs perceived age
+
+Relate actual age to perceived modal age for each face
+```{r}
+age_perc <- age_modes |> 
+  mutate(age_mid = age_mode) |> 
+  separate(age_mid, into = c("age_start", "age_end"), sep = "-", convert = TRUE) |> 
+  mutate(age_perc = (age_start + age_end) / 2) |> 
+  select(-age_start, -age_end)
+
+age_by_face <- data_model |> 
+  dplyr::select(lab_id, model_id, age) |> 
+  rename(age_actual = age) |> 
+  left_join(age_perc, by = c("lab_id", "model_id"))
+```
+
+```{r}
+# Get stats
+age_by_face_cortest <- cor.test(age_by_face$age_actual, 
+                                age_by_face$age_perc)
+age_by_face_df <- age_by_face_cortest$parameter
+age_by_face_r <- age_by_face_cortest$estimate
+age_by_face_p <- age_by_face_cortest$p.value
+if (age_by_face_p < .001) {
+  age_by_face_p = .001
+}
+label_text <- sprintf("r(%.0f) = %.2f, p < %.3f", 
+                      age_by_face_df, age_by_face_r, age_by_face_p)
+```
+
+```{r}
+age_by_face |> 
+  filter(!is.na(age_actual) & !is.na(age_perc)) |> 
+  ggplot(aes(x = age_actual, y = age_perc)) +
+  geom_point(colour = "orchid", alpha=.5) +
+  geom_smooth(method = "lm",  formula = y ~ x, 
+              se = TRUE, colour = "orchid") +
+  annotate("text", x = 60, y = 40, label = label_text, hjust = 0) +
+  labs(title = "Actual model age vs. perceived age",
+       x = "Actual age", 
+       y = "Mode perceived age") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12, face = "plain"),
+        title = element_text(size = 12))
+```
+
+## Compile ratings
+```{r}
+ratings_traits <- std_neutral_means |> 
+  full_join(unstd_neutral_means, by = c("lab_id", "model_id"))
+
+ratings_emotions <- emo_cat_props |> 
+  left_join(emo_int_means, by = c("lab_id", "model_id", "model_expression"))
+```
+
+```{r}
+write_csv(ratings_traits, "results/manyfaces_ratings_traits.csv")
+write_csv(ratings_emotions, "results/manyfaces_ratings_emotions.csv")
+```
+
+## Model self-report
+  
+### gender
+```{r}
+count(data_model, gender_rec, sort=TRUE)
+```
+  
+  
+### ethnicity
+```{r}
+count(data_model, ethnicity_rec, sort=TRUE)
+```
+  
+  
+### age
+  
+```{r fig.height = 3.5, fig.width=8, warning=FALSE}
+age_by_face |> 
+  ggplot(aes(x = age_actual)) +
+  geom_histogram(binwidth = 1, fill = "orchid", alpha = .8) +
+  scale_x_continuous(breaks = seq(15, 85, 5)) +
+  labs(title = "Model self-reported age",
+       x = "age (years)", 
+       y = "count") +
+    theme_minimal() +
+    theme(axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12, face = "plain"),
+        title = element_text(size = 12)) 
+```
+
+  
+```{r}
+data_model |>
+  summarise(age_min = min(age, na.rm = TRUE),
+    age_max = max(age, na.rm = TRUE),
+    age_M = mean(age, na.rm = TRUE),
+    age_SD = sd(age, na.rm=TRUE))
+```
+  
+  
+descriptive statistics split by gender
+```{r}
+data_model |>
+  mutate(gender = gender_rec) |>
+  summarise(
+    .by = gender,
+    n = n(),
+    age_min = min(age, na.rm = TRUE),
+    age_max = max(age, na.rm = TRUE),
+    age_M = mean(age, na.rm = TRUE),
+    age_SD = sd(age, na.rm = TRUE))
+```
+  
+  
+### height (cm)
+  
+```{r fig.height = 3.5, fig.width=8, warning=FALSE}
+data_model |>
+  ggplot(aes(x = height_cm)) +
+  geom_histogram(binwidth = 1, fill = "#F7AE8F", alpha = .8) +
+  labs(title = "Model self-reported height",
+       x = "height (cm)", 
+       y = "count") +
+    theme_minimal() +
+    theme(axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12, face = "plain"),
+        title = element_text(size = 12)) 
+```
+  
+  
+descriptive statistics split by gender
+```{r}
+data_model |>
+  mutate(gender = gender_rec) |>
+  summarise(
+    .by = gender,
+    n = n(),
+    height_min = min(height_cm, na.rm = TRUE),
+    height_max = max(height_cm, na.rm = TRUE),
+    height_M = mean(height_cm, na.rm = TRUE),
+    height_SD = sd(height_cm, na.rm = TRUE)) 
+```
+  
+  
+### weight (kg)
+  
+```{r fig.height = 3.5, fig.width=8, warning=FALSE}
+data_model |>
+  ggplot(aes(x = weight_kg)) +
+  geom_histogram(binwidth = 1, fill = "orange", alpha = .8) +
+  labs(title = "Model self-reported weight",
+       x = "weight (kg)", 
+       y = "count") +
+    theme_minimal() +
+    theme(axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12, face = "plain"),
+        title = element_text(size = 12))
+```
+  
+  
+descriptive statistics split by gender
+```{r}
+data_model |>
+  mutate(gender = gender_rec) |>
+  summarise(
+    .by = gender,
+    n = n(),
+    weight_min = min(weight_kg, na.rm = TRUE),
+    weight_max = max(weight_kg, na.rm = TRUE),
+    weight_M = mean(weight_kg, na.rm = TRUE),
+    weight_SD = sd(weight_kg, na.rm = TRUE)) 
+```
